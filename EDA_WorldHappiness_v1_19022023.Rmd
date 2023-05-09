@@ -1,0 +1,234 @@
+---
+title: "World Happiness Exploratory Data Analysis"
+author: "Wahyu Widiawati"
+date: "2023-03-19"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Introduction
+## 1.1 Metadata
+Data Source   : https://worldhappiness.report/  
+Data Range    : 2018 - 2022 
+
+## 1.2 Definition
+World happiness is the collective state of well-being and contentment of individuals and societies globally. This happiness level is evaluated and presented in a World Happiness Report, which includes country rankings and overall scores. A country's happiness rank is determined by its happiness score, which is measured by several parameters, including but not limited to:  
+
+- Gross Domestic Product (GDP) per capita: the monetary value of all finished goods and services produced within a country's borders in a specific period of time, divided by the number of people living in that country. It reflects how well the economy of the country is performing.  
+- Social support: the support gained from someone when they encounter problems.  
+- Healthy life expectancy: the expectancy regarding physical and mental health.  
+- Freedom to make life choices: the satisfaction of the freedom to choose what people do with their lives.  
+- Generosity: the act of giving to others without expecting anything in return. It involves showing kindness, compassion, and willingness to help others in need.  
+- Perceptions of corruption: refers to the question like, "do people trust their governments and have trust in the benevolence
+of others?"  
+
+## 1.3 The Analysis Questions
+In this project, we will explore the world happiness datasets from 2018-2022 and examine the following questions:  
+1. How have the rankings changed over time?  
+2. What factors are most strongly correlated with happiness scores?  
+
+# 2. Preparation
+## 2.1 Load Libraries
+We need to load some libraries here, such as dplyr (for data manipulation), ggplot2 (to create a plot), and corrplot (to reflect a correlations between the parameters).  
+```{r}
+library(dplyr)
+library(ggplot2)
+library(corrplot)
+```
+## 2.2 Importing Datasets
+```{r}
+getwd()
+df_2018 <- data.frame(read.csv(file = "dataset_2018.csv", header = TRUE, sep = ","))
+df_2019 <- data.frame(read.csv(file = "dataset_2019.csv", header = TRUE, sep = ","))
+df_2020 <- data.frame(read.csv(file = "dataset_2020.csv", header = TRUE, sep = ","))
+df_2021 <- data.frame(read.csv(file = "dataset_2021.csv", header = TRUE, sep = ","))
+df_2022 <- data.frame(read.csv(file = "dataset_2022.csv", header = TRUE, sep = ","))
+```
+ 
+# 3. Data Cleaning and Formatting
+## 3.1 List of Fields
+```{r}
+names(df_2018)
+names(df_2019)
+names(df_2020)
+names(df_2021)
+names(df_2022)
+```
+## 3.2 Removing Unnecessary Fields
+In this EDA, we have different data structures for the 2020-2022 datasets, which have more fields than 2018 and 2019 datasets. Therefore, we need to adjust them by removing some fields. It's important to consider whether the field is necessary or not. The fields like regional indicator, upperwhisker, lowerwhisker, etc. were ensured to be unnecessary for this EDA. Hence, we can remove these fields.
+```{r}
+df_2020 <- df_2020 [ ,-c(3,5:14,21)]
+names(df_2020)
+df_2021 <- df_2021 [ ,-c(3,5:14,21)]
+names(df_2021)
+df_2022 <- df_2022 [ ,-c(4:6)]
+names(df_2022)
+```
+## 3.3 Changing Field Name
+Once we have the same data structures for all the datasets, we need to make the column names consistent. This will help us to bind them together, as the next step will requires the data to have same column names.
+```{r}
+colnamesconv <- names(df_2018)
+colnames(df_2020) <- colnamesconv
+colnames(df_2021) <- colnamesconv
+colnames(df_2022) <- colnamesconv
+names(df_2018)
+names(df_2019)
+names(df_2020)
+names(df_2021)
+names(df_2022)
+```
+## 3.4 Checking Missing Value
+Checking for missing values is important to ensure that we have accurate data. Missing values can cause issues in data analysis and can affect the validity of our results. Therefore, we need to check for missing values and handle them appropriately.  
+```{r}
+sum(is.na(df_2018))
+sum(is.na(df_2019))
+sum(is.na(df_2020))
+sum(is.na(df_2021))
+sum(is.na(df_2022))
+```
+## 3.5 Delete Missing Value
+In the previous step, we observed that we have 7 missing values in 2022 dataset. We need to determine if we can be remove them or not. 
+```{r}
+which(is.na(df_2022), arr.ind = TRUE, useNames = TRUE)
+```
+Since all the missing values are in the same row and there are more missing values than filled values in that row, we can remove the entire row.
+```{r}
+df_2022 <- na.omit(df_2022)
+sum(is.na(df_2022))
+```
+Now, we have cleaned the data and there are no missing value anymore.<br>   
+
+## 3.6 Adding Year Field
+In the next step, we will bind all the datasets together. Therefore, we need to add a year column to differentiate the data from different datasets.  
+```{r}
+df_2018$Year <- rep("2018", nrow(df_2018))
+df_2019$Year <- rep("2019", nrow(df_2019))
+df_2020$Year <- rep("2020", nrow(df_2020))
+df_2021$Year <- rep("2021", nrow(df_2021))
+df_2022$Year <- rep("2022", nrow(df_2022))
+names(df_2018)
+```
+## 3.7 Binding Datasets
+In this step, we combined all of the datasets into a single dataframe named "dfAll".
+```{r}
+dfAll <- rbind(df_2018,df_2019,df_2020,df_2021,df_2022)
+```
+
+# 4. Exploratory Data Analysis
+## 4.1 Statistic Descriptive
+### 4.1.1 Overview
+This is the overview of the datasets we have.  
+```{r}
+glimpse(dfAll)
+print(unique(dfAll$Country.or.region))
+```
+By using this overview, we can quickly inspect the structure and contents of the earliest and most recent dataset.
+```{r}
+head(df_2018)
+head(df_2022)
+```
+### 4.1.2 Mean
+This is the mean value of the world happiness score, year by year.  
+```{r}
+dfAll_mean_by_year <- data.frame(dfAll %>% 
+  group_by(Year) %>%
+  summarize(mean(Score))) %>%
+  print()
+```
+Additionally, this is the calcuation of the overall mean value of the world happiness score from 2018-2022.  
+```{r}
+dfAll_mean <- dfAll %>%
+  summarize(mean(Score)) %>%
+  print()
+```
+Then, to create a visualization using ggplot2, we need to ensure that the data we want to plot is in a numeric data type.  
+```{r}
+str(dfAll_mean_by_year)
+```
+As we can see, the year field is in a character data type. Therefore, we need to convert it to numeric.  
+```{r}
+dfAll_mean_by_year$Year <- as.numeric(dfAll_mean_by_year$Year)
+ggplot(data = dfAll_mean_by_year, aes(x = Year, y = mean.Score.)) +
+  geom_line(color = "blue") +
+  labs(title = "Mean of the Happiness Scores by Year", x = "Year", y = "Mean of the Happiness Scores")
+
+```
+
+Based on this plot, we can see that the mean hapiness score increases year by year. It means, the level of happiness of people from all over the world increases.  
+
+### 4.1.3 Median
+This is the median value of the world happiness score, year by year.  
+```{r}
+dfAll_median_by_year <- data.frame (dfAll %>%
+  group_by(Year) %>%
+  summarize(median(Score)))%>%
+  print()
+```
+Additionally, this is the median value of world happiness score from 2018-2022.  
+```{r}
+dfAll_median <- dfAll%>%
+  summarize(median(Score)) %>%
+  print()
+```
+```{r}
+str(dfAll_median_by_year)
+dfAll_median_by_year$Year<-as.numeric(dfAll_median_by_year$Year)
+ggplot(data = dfAll_median_by_year, aes(x = Year, y = median.Score.)) + geom_line(color = "blue") +labs(title = "Median of the Happiness Scores by Year", 
+              x = "Year", y = "Median of the Happiness Scores")
+```
+
+### 4.1.4 Mode
+This is the mode value of the world happiness score, year by year.  
+```{r}
+hist(dfAll$Score, breaks = 5, col = "darkblue",
+     labels = TRUE, ylim = c(0,250), 
+     xlab = "Value", ylab = "Frequency", 
+     main = "Histogram of Data" )
+```
+
+According to this histogram, we can see the distribution of the happiness score is mostly distributed in the range of 4-7.  
+
+## 4.2 Multivariate Analysis
+### 4.2.1 How Have the Rankings Changed Over Time?  
+```{r}
+dfAll$Year <- as.numeric(dfAll$Year)
+dfAll_rank <- dfAll %>%
+            select(Year, Country.or.region, Overall.rank) %>%
+            filter(Overall.rank <= 5) %>%
+            print()
+```
+
+```{r}
+ggplot(dfAll_rank, aes(x = Year, y = Overall.rank, color = Country.or.region)) + 
+  geom_line() + 
+  labs(x = "Year", y = "Rank", color = "Country") + 
+  theme_bw()
+```
+
+The line plot reveals that Denmark, Finland, Iceland, Netherlands, Norway, and Switzerland are the 6 countries that consistently rank in the top 5 during 2018-2022. Interestingly, only Finland, Denmark, and Iceland managed to maintain a consistently high rank in happiness score throughout the years. Moreover, the plot also shows some fluctuations in rankings over the years, implying that happiness levels in different countries are not always stable. 
+In addition to the insights gained from the line plot, we can also explore the correlation between parameters that contribute to the happiness score. For instance, we can analyze the correlation between GDP per capita and life expectancy, or the correlation between social support and generosity. By examining these correlations, we can gain a better understanding of the factors that have the strongest influence on a country's happiness score, and how they may have changed over time.<br>  
+
+### 4.2.2 Correlation Between Parameters (What Factors Affect the Most to Happiness Score?
+```{r}
+subset_dfAll <- dfAll[, c("Score", "GDP.per.capita", "Social.support", "Healthy.life.expectancy",
+                "Freedom.to.make.life.choices", "Generosity", "Perceptions.of.corruption")]
+str(subset_dfAll)
+subset_dfAll$Perceptions.of.corruption <- as.numeric(subset_dfAll$Perceptions.of.corruption)
+sum(is.na(subset_dfAll))
+subset_dfAll <- na.omit(subset_dfAll)
+
+corr_matrix <- cor(subset_dfAll, method = "pearson")
+
+corrplot(corr_matrix, method = "color", type = "full", tl.col = "black",
+         tl.srt = 45, tl.cex = 0.8, col = colorRampPalette(c("#ADD8E6", "#000080"))(50),
+         addCoef.col = "white", number.cex = 0.7)
+```
+
+According to the correlation plot above, We can observe a strong correlation between the GDP per capita and healthy life expectancy, as well as between GDP per capita and social support. This indicates that a country with a higher GDP is likely to have better outcomes in terms of both health and social support, which in turn contributes to greater overall happiness in that country. Therefore, a higher GDP tends to be associated with a higher happiness score.  
+
+Based on the correlation analysis conducted, it appears that increasing a country's GDP per capita may contribute to a higher happiness level. Additionally, improving factors such as healthy life expectancy and social support may also positively impact a country's happiness level. Therefore, to increase a country's happiness level, policies and initiatives that focus on improving the economy, healthcare, and social welfare may be effective. However, it is important to note that happiness is a complex construct that cannot be solely attributed to these factors, and other cultural, social, and psychological factors may also play a significant role.
